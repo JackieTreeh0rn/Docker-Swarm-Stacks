@@ -1,0 +1,47 @@
+
+version: "3.9"
+
+x-logging:
+  &default-logging
+  driver: "json-file"
+  options:
+    max-size: "1m"
+    max-file: "1"
+    tag: "{{.Name}}"
+
+services:
+  tailscale:
+    image: tailscale/tailscale:latest
+    # hostname: "{{.Node.Hostname}}"
+    networks:
+      - host
+    cap_add:
+      - net_admin
+      - sys_module
+    volumes:
+      - /lib/modules:/lib/modules
+      - /mnt/glusterfs/tailscale/state:/var/lib/tailscale
+      - /dev/net/tun:/dev/net/tun
+    devices:
+      - /dev/net/tun:/dev/net/tun #not supported on swarm mode
+    environment:
+      - TZ='America/New_York'
+      - TS_AUTHKEY
+      - "TS_EXTRA_ARGS=--advertise-routes=10.0.1.0/24 --accept-dns=false" # When using as subnet router
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_ENABLE_HEALTH_CHECK=true
+      - TS_USERSPACE=true
+    deploy:
+      # mode: global
+      replicas: 1
+      placement:
+        constraints: 
+          - node.labels.WIRED == YES
+          - node.labels.GLUSTER == YES
+    logging: *default-logging
+
+
+networks:
+  host:
+    external: true
+    name: host

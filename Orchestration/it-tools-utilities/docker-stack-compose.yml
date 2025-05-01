@@ -1,0 +1,40 @@
+version: '3.9'
+
+x-logging:
+  &default-logging
+  driver: "json-file"
+  options:
+    max-size: "1m"
+    max-file: "1"
+    tag: "{{.Name}}"
+    
+services:
+  it-tools:
+    image: jackietreehorn/${STACK_NAME}:latest # corentinth/it-tools:latest
+    networks:
+      - traefik-public
+    environment:
+      - TZ='America/New_York'
+      - PUID=${PUID}
+      - PGID=${PGID}
+    deploy: 
+      mode: replicated
+      replicas: 1
+      # placement:
+        # constraints:
+        #   - node.labels.WIRED == YES
+      labels:
+        - traefik.enable=true
+        - traefik.swarm.network=traefik-public
+        - traefik.http.routers.${ROUTER_NAME}.rule=Host(`${ROUTER_NAME}.${ROOT_DOMAIN}`)
+        - traefik.http.routers.${ROUTER_NAME}.middlewares=chain-no-auth-v2@file,error-pages
+        - traefik.http.routers.${ROUTER_NAME}.service=${ROUTER_NAME}-svc
+        - traefik.http.services.${ROUTER_NAME}-svc.loadbalancer.server.port=80
+      restart_policy:
+        condition: on-failure
+    logging: *default-logging
+
+
+networks:
+  traefik-public:
+    external: true

@@ -1,0 +1,33 @@
+version: '3.9'
+
+x-logging:
+  &default-logging
+  driver: "json-file"
+  options:
+    max-size: "1m"
+    max-file: "1"
+    tag: "{{.Name}}"
+
+services:
+  keepalived:
+    image: jackietreehorn/${STACK_NAME} # ghcr.io/lhns/keepalived-swarm 
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - host
+    deploy:
+      mode: global
+      placement:
+        constraints: 
+          - node.role == manager
+    environment:
+      TZ: "America/New_York"
+      KEEPALIVED_VIRTUAL_IPS: "10.0.1.101, 10.0.1.102"
+    # cap_add:
+    #   - NET_ADMIN
+    logging: *default-logging
+
+networks:
+  host:
+    external: true
+    name: host

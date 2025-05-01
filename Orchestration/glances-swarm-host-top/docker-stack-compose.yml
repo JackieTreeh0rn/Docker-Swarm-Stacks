@@ -1,0 +1,109 @@
+version: "3.9"
+
+x-logging:
+  &default-logging
+  driver: "json-file"
+  options:
+    max-size: "1m"
+    max-file: "1"
+    tag: "{{.Name}}"
+
+services:
+  glances-server:
+    image: jackietreehorn/${STACK_NAME}:latest  # nicolargo/glances:dev
+    hostname: "{{.Node.Hostname}}"
+    user: ${PUID}:${PGID} #root
+    cap_add:
+      - NET_ADMIN
+      - CAP_NET_BIND_SERVICE
+      - CAP_CHOWN
+      - CAP_SYS_NICE
+    networks:
+      - host
+    volumes:
+      - "/etc/os-release:/etc/os-release:ro"
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      # - "/mnt/glusterfs/glances/glances.conf:/etc/glances/glances.conf"
+    environment:
+      - TZ='America/New_York'
+      # - "GLANCES_OPT=-C /etc/glances/glances.conf -w --fahrenheit"
+      - "GLANCES_OPT=-w --fahrenheit"
+    deploy:
+      mode: global
+      # replicas: 1
+      # placement:
+      #   constraints:
+      #     - node.role == manager
+    # Uncomment for GPU compatibility (Nvidia) inside the container
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+      # labels:
+      #   - traefik.enable=true
+      #   - traefik.swarm.network=traefik-public
+      #   - traefik.http.routers.${ROUTER_NAME}.rule=Host(`${ROUTER_NAME}.${ROOT_DOMAIN}`)
+      #   - traefik.http.routers.${ROUTER_NAME}.entrypoints=websecure
+      #   - traefik.http.routers.${ROUTER_NAME}.middlewares=chain-no-auth@file,error-pages
+      #   - traefik.http.routers.${ROUTER_NAME}.service=${ROUTER_NAME}-svc
+      #   - traefik.http.services.${ROUTER_NAME}-svc.loadbalancer.server.port=61208
+    logging: *default-logging
+
+
+  glances-client:
+    image: jackietreehorn/${STACK_NAME}:latest  # nicolargo/glances:dev
+    depends_on:
+      - glances-server
+    hostname: "{{.Node.Hostname}}"
+    user: ${PUID}:${PGID} #root
+    cap_add:
+      - NET_ADMIN
+      - CAP_NET_BIND_SERVICE
+      - CAP_CHOWN
+      - CAP_SYS_NICE
+    networks:
+      - traefik-public
+      - backend
+      - host
+    volumes:
+      - "/etc/os-release:/etc/os-release:ro"
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      # - "/mnt/glusterfs/glances/glances.conf:/etc/glances/glances.conf"
+    environment:
+      - TZ='America/New_York'
+      # - "GLANCES_OPT=-C /etc/glances/glances.conf -w --fahrenheit"
+      - "GLANCES_OPT=--browser -w"
+    deploy:
+      # mode: global
+      replicas: 1
+      # placement:
+      #   constraints:
+      #     - node.role == worker
+    # Uncomment for GPU compatibility (Nvidia) inside the container
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+      labels:
+        - traefik.enable=true
+        - traefik.swarm.network=traefik-public
+        - traefik.http.routers.${ROUTER_NAME}.rule=Host(`${ROUTER_NAME}.${ROOT_DOMAIN}`)
+        - traefik.http.routers.${ROUTER_NAME}.middlewares=chain-no-auth-v2@file,error-pages
+        - traefik.http.routers.${ROUTER_NAME}.service=${ROUTER_NAME}-svc
+        - traefik.http.services.${ROUTER_NAME}-svc.loadbalancer.server.port=61208
+    logging: *default-logging
+
+
+networks:
+  traefik-public:
+    external: true
+  backend:
+    name: ${BACKEND_NETWORK_NAME}
+    external: true
+  host:
+    external: true
+    name: host

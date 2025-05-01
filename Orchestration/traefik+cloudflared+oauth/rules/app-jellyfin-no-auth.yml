@@ -1,0 +1,17 @@
+http:
+  routers:
+    jellyfin:
+      rule: Host(`jellyfin.{{env "ROOT_DOMAIN"}}`)
+      # entryPoints:
+      #   - websecure
+      middlewares:
+        - chain-no-auth-v2
+      service: jellyfin-svc
+      # tls:
+      #   certResolver: letsencrypt
+        # options: tls-opts@file
+  services:
+    jellyfin-svc:
+      loadBalancer:
+        servers:
+          - url: "http://jellyfin.your-domain.lan:8096"

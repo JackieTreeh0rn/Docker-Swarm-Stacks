@@ -1,0 +1,54 @@
+version: '3.9'
+
+x-logging:
+  &default-logging
+  driver: "json-file"
+  options:
+    max-size: "1m"
+    max-file: "1"
+    tag: "{{.Name}}"
+    
+services:
+  vscode:
+    image: lscr.io/linuxserver/code-server:latest
+    volumes:
+      - /mnt/glusterfs:/glusterfs
+      - /mnt/glusterfs/vscode/config:/config
+    networks:
+      - traefik-public
+    # ports:
+    #   - "8443:8443" #using reverse proxy
+    environment:
+      TZ: 'America/New_York'
+      PUID: ${PUID}
+      PGID: ${PGID}
+      # DOCKER_HOST: tcp://socket-proxy:2375
+      # PASSWORD: $VSCODE_PASSWORD
+      # HASHED_PASSWORD: #optional
+      # SUDO_PASSWORD: password #optional
+      # SUDO_PASSWORD_HASH: #optional
+      # PROXY_DOMAIN: code-server.my.domain #optional
+      # DEFAULT_WORKSPACE: /config/data/User/Workspaces/bitwise.code-workspace #optional
+    deploy: 
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.labels.WIRED == YES
+          - node.labels.GLUSTER == YES
+        max_replicas_per_node: 1
+      labels:
+        - traefik.enable=true
+        - traefik.swarm.network=traefik-public
+        - traefik.http.routers.${ROUTER_NAME}.rule=Host(`${ROUTER_NAME}.${ROOT_DOMAIN}`)
+        - traefik.http.routers.${ROUTER_NAME}.middlewares=chain-no-auth@file,error-pages
+        - traefik.http.routers.${ROUTER_NAME}.service=${ROUTER_NAME}-svc
+        - traefik.http.services.${ROUTER_NAME}-svc.loadbalancer.server.port=8443
+      restart_policy:
+        condition: on-failure
+    logging: *default-logging
+
+
+networks:
+  traefik-public:
+    external: true

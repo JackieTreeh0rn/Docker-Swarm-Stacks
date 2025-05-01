@@ -1,0 +1,16 @@
+http:
+  routers:
+    homebridge:
+      rule: Host(`homebridge.{{env "ROOT_DOMAIN"}}`)
+      # entryPoints:
+      #   - websecure
+      middlewares:
+        - chain-no-auth
+      service: homebridge-svc
+      # tls:
+      #   certResolver: letsencrypt
+  services:
+    homebridge-svc:
+      loadBalancer:
+        servers:
+          - url: "http://homebridge.your-domain.lan:8581"

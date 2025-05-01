@@ -1,0 +1,54 @@
+version: '3.9'
+
+x-logging:
+  &default-logging
+  driver: "json-file"
+  options:
+    max-size: "1m"
+    max-file: "1"
+    tag: "{{.Name}}"
+    
+services:
+  jellyfin:
+    image: jellyfin/jellyfin:latest
+    container_name: ${STACK_NAME}
+    user: ${PUID}:${PGID}
+    # Change this to match your "render" | "video" host group id on host
+    group_add:
+      - "993" # getent group render | cut -d: -f3
+      - "44"  # getent group video | cut -d: -f3
+    network_mode: 'host'
+    volumes:
+      - /mnt/NAS-iSCSI/_jellyfin/config:/config
+      - /mnt/NAS-iSCSI/_jellyfin/cache:/cache
+      - type: bind
+        source: /mnt/NAS-iSCSI/Video
+        target: /Video
+      - type: bind
+        source: /mnt/NAS-iSCSI/Photo
+        target: /Photo
+    devices:
+      # VAAPI Devices: ls -l /dev/dri # on <docker host>
+      - /dev/dri/renderD128:/dev/dri/renderD128
+      - /dev/dri/card1:/dev/dri/card1
+        # read_only: true
+      # Optional - extra fonts to be used during transcoding with subtitle burn-in
+      # - type: bind
+      #   source: /path/to/fonts
+      #   target: /usr/local/share/fonts/custom
+      #   read_only: true
+    restart: 'unless-stopped'
+    # Optional - alternative address used for autodiscovery
+    # environment:
+      # - JELLYFIN_PublishedServerUrl=http://example.com
+    # Optional - may be necessary for docker healthcheck to pass if running in host network mode
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+    # labels:   # Using Traefik rule file since this container runs in host network mode - see traefik stack rules
+    #   - traefik.enable=true
+    #   - traefik.swarm.network=traefik-public
+    #   - traefik.http.routers.${ROUTER_NAME}.rule=Host(`${ROUTER_NAME}.${ROOT_DOMAIN}`)
+    #   - traefik.http.routers.${ROUTER_NAME}.middlewares=chain-no-auth-v2@file,error-pages
+    #   - traefik.http.routers.${ROUTER_NAME}.service=${ROUTER_NAME}-svc
+    #   - traefik.http.services.${ROUTER_NAME}-svc.loadbalancer.server.port=8096
+    logging: *default-logging

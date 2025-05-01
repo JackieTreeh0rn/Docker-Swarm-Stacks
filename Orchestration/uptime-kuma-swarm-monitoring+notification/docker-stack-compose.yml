@@ -1,0 +1,52 @@
+version: '3.9'
+
+x-logging:
+  &default-logging
+  driver: "json-file"
+  options:
+    max-size: "1m"
+    max-file: "1"
+    tag: "{{.Name}}"
+    
+services:
+  uptime-kuma:
+    image: louislam/uptime-kuma:nightly2 # jackietreehorn/${STACK_NAME}:latest 
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /mnt/glusterfs/uptime-kuma/data:/app/data
+    networks:
+      - backend
+      - traefik-public
+    # ports:
+    #   - "5002:3001"
+    environment:
+      TZ: 'America/New_York'
+      PUID: ${PUID}
+      PGID: ${PGID}
+    deploy: 
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+          - node.labels.GLUSTER == YES
+          - node.labels.WIRED == YES 
+        max_replicas_per_node: 1
+      labels:
+        - traefik.enable=true
+        - traefik.swarm.network=traefik-public
+        - traefik.http.routers.${ROUTER_NAME}.rule=Host(`${ROUTER_NAME}.${ROOT_DOMAIN}`)
+        - traefik.http.routers.${ROUTER_NAME}.middlewares=chain-no-auth@file,error-pages
+        - traefik.http.routers.${ROUTER_NAME}.service=${ROUTER_NAME}-svc
+        - traefik.http.services.${ROUTER_NAME}-svc.loadbalancer.server.port=3001
+      restart_policy:
+        condition: on-failure
+    logging: *default-logging
+
+
+networks:
+  backend:
+    name: ${BACKEND_NETWORK_NAME}
+    external: true
+  traefik-public:
+    external: true

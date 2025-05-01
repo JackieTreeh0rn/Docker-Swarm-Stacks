@@ -1,0 +1,38 @@
+version: 0.1
+log:
+  level: debug
+  fields:
+    service: registry
+storage:
+  cache:
+    blobdescriptor: redis
+  filesystem:
+    rootdirectory: /var/lib/registry
+  delete:
+    enabled: true
+redis:
+  addr: redis:6379 
+  # password: asecret
+  db: 0
+  dialtimeout: 500ms
+  readtimeout: 500ms
+  writetimeout: 500ms
+  pool:
+    maxidle: 16
+    maxactive: 64
+    idletimeout: 300s
+
+http:
+  addr: :5000 #127.0.0.1:5000
+  headers:
+    X-Content-Type-Options: [nosniff]
+health:
+  storagedriver:
+    enabled: true
+    interval: 10s
+    threshold: 3
+# uncomment to use as a pull-through registry
+# proxy:
+#   remoteurl: https://registry-1.docker.io
+  # username: [username] # docker username
+  # password: [password] # docker token

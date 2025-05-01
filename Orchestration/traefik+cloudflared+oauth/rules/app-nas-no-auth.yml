@@ -1,0 +1,16 @@
+http:
+  routers:
+    nas:
+      rule: Host(`nas.{{env "ROOT_DOMAIN"}}`)
+      # entryPoints:
+      #   - websecure
+      middlewares:
+        - chain-no-auth-v2
+      service: nas-svc
+      # tls:
+      #   certResolver: letsencrypt
+  services:
+    nas-svc:
+      loadBalancer:
+        servers:
+          - url: "http://nas.your-domain.lan:5000"

@@ -1,0 +1,23 @@
+version: '3.9'
+
+services:
+  whoami:
+    hostname: '{{.Node.Hostname}}'
+    image: traefik/whoami
+    command:
+      - --name=externalapp
+    networks:
+      - traefik-public
+    deploy:
+      labels:
+        - traefik.enable=true
+        - traefik.swarm.network=traefik-public
+        - traefik.http.routers.external.rule=Host(`external.${ROOT_DOMAIN}`) #|| Host(`www.external.${ROOT_DOMAIN}`)
+        - traefik.http.routers.external.middlewares=chain-oauth@file #,wwwredirect
+        - traefik.http.routers.external.service=external-svc
+        - traefik.http.services.external-svc.loadbalancer.server.port=80
+        # Only service with this constrain will get picked up by cloudflare companion
+        - traefik.constraint=traefik-public
+networks:
+  traefik-public:
+    external: true

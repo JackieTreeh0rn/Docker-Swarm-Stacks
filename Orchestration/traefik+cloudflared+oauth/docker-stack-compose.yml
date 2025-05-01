@@ -1,0 +1,339 @@
+version: '3.9'
+
+x-logging:
+  &default-logging
+  driver: "json-file"
+  options:
+    max-size: "1m"
+    max-file: "1"
+    tag: "{{.Name}}"
+
+
+services:
+  reverse-proxy:
+    image: traefik:3
+    hostname: '{{.Node.Hostname}}'
+    depends_on:
+      - dockersocket
+      - cf-tunnel
+    command:
+      # No Telemetry
+      - "--global.sendAnonymousUsage=true"
+      - "--global.checkNewVersion=true"
+      # Enable the Traefik log, for configurations and errors
+      - "--log"
+      # Enable the access log, with HTTP requests
+      - "--accesslog=true"
+      # - "--acme.acmelogging"
+      - "--log.level=${LOG_LEVEL}" # INFO | ERROR | DEBUG | WARN
+       # Enable the Dashboard and API
+      - "--api=true"
+      - "--api.dashboard=true"
+      - "--api.insecure=true" # production = false | development = true (using websecure 443 anyway)
+      - "--providers.swarm.endpoint=tcp://dockersocket:2375"   
+      # Do not expose all Docker services, only the ones explicitly exposed
+      - "--providers.swarm.exposedByDefault=false"
+      - "--providers.swarm.network=traefik-public"
+      - "--providers.file.directory=/rules" # Load dynamic configuration from one or more .toml or .yml files
+      - "--providers.file.watch=true" # Only works on top level files in the rules folder
+      # Allow these IPs to set the X-Forwarded-* headers - Cloudflare IPs: https://www.cloudflare.com/ips/
+      - "--entrypoints.websecure.forwardedHeaders.trustedIPs=$CLOUDFLARE_IPS,$LOCAL_IPS"
+      # Create an entrypoint "http" listening on port 80
+      - "--entrypoints.web.address=:80"
+      # Create an entrypoint "https" listening on port 443
+      - "--entrypoints.websecure.address=:443"
+      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
+      - "--entrypoints.web.http.redirections.entrypoint.permanent=true"
+      - "--entrypoints.websecure.asDefault=true" # will not work with Traefik v2
+      - "--entrypoints.websecure.http.tls.certresolver=letsencrypt"
+      - "--entrypoints.websecure.http.tls=true"
+      # - "--entrypoints.websecure.http.tls.options=tls-opts@file" # cert properties - optional
+      - "--entrypoints.websecure.http.tls.domains[0].main=${ROOT_DOMAIN}"
+      - "--entrypoints.websecure.http.tls.domains[0].sans=*.${ROOT_DOMAIN}"
+      # Create the certificate resolver "le" for Let's Encrypt
+      # - "--certificatesresolvers.letsencrypt.acme.caserver=https://acme-staging-v02.api.letsencrypt.org/directory" # For testing only
+      # - "--certificatesresolvers.letsencrypt.acme.caserver=https://acme-v02.api.letsencrypt.org/directory" # Production - Rated limited !!!
+      - "--certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL?Variable not set}"
+      # Store the Let's Encrypt certificates in the mounted volume
+      - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
+      # Use the TLSChallenge for Let's Encrypt
+      # - "--certificatesresolvers.letsencrypt.acme.tlschallenge=true"
+      # Use the HTTPChallenge for Let's Encrypt
+      # - "--certificatesresolvers.letsencrypt.acme.httpchallenge=true"
+      # - "--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web"
+      # Use the DNSChallenge for Let's Encrypt
+      - "--certificatesresolvers.letsencrypt.acme.dnschallenge=true"
+      - "--certificatesresolvers.letsencrypt.acme.dnschallenge.provider=cloudflare"
+      - "--certificatesresolvers.letsencrypt.acme.dnschallenge.delaybeforecheck=90"
+      # - "--certificatesresolvers.letsencrypt.acme.dnschallenge.disablepropagationcheck=true"
+      - "--certificatesresolvers.letsencrypt.acme.dnschallenge.resolvers=1.1.1.1:53,1.0.0.1:53"
+      # Allow self-signed certificates for target hosts - https://doc.traefik.io/traefik/routing/overview/#insecureskipverify
+      - "--serversTransport.insecureSkipVerify=true"
+      # - "--metrics"
+      # - "--metrics.prometheus.buckets=0.1,0.3,1.2,5.0"
+    secrets:
+      - cf_token
+      - basic_auth_creds
+    environment:
+      - TZ="America/New_York"
+      - HTPASSWD_FILE=/run/secrets/basic_auth_creds # Passing to traefik container to be able to use the var in rules.
+      - CLOUDFLARE_EMAIL=${ACME_EMAIL}
+      - CLOUDFLARE_DNS_API_TOKEN_FILE=/run/secrets/cf_token
+      - CLOUDFLARE_HTTP_TIMEOUT=${HTTP_TIMEOUT}
+      - CLOUDFLARE_POLLING_INTERVAL=${POLLING_INTERVAL}
+      - CLOUDFLARE_PROPAGATION_TIMEOUT=${PROPAGATION_TIMEOUT}
+      - CLOUDFLARE_TTL=${TTL}
+      - ROOT_DOMAIN # Passing to traefik container to be able to use the var in rules.
+    deploy:
+      restart_policy:
+        condition: any
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+      update_config: # Start new instance before stopping existing one
+        delay: 10s
+        order: start-first
+        parallelism: 1
+      rollback_config:
+        parallelism: 0
+        order: stop-first
+      # mode: global
+      placement:
+        constraints:
+          - node.labels.WIRED == YES
+          - node.labels.GLUSTER == YES
+      labels:
+        # Enable Traefik for this service, to make it available in the public network
+        - traefik.enable=true
+        # - traefik.docker.network=traefik-public
+        - traefik.swarm.network=traefik-public
+        - traefik.http.routers.api.middlewares=chain-basic-auth-traefik@file,error-pages # using chains of middlewares via file provider (even cleaner)
+        # Use the special Traefik service api@internal with the web UI/Dashboard
+        - traefik.http.routers.api.service=api@internal
+        # Dashboard site rule
+        - traefik.http.routers.api.rule=Host(`traefik.${ROOT_DOMAIN}`)
+        # - "traefik.http.routers.api.rule=Host(`traefik.${ROOT_DOMAIN}`) && (PathPrefix(`/api`) || PathPrefix(`/dashboard`))"
+        - traefik.http.routers.api.entrypoints=websecure
+        # Define the port inside of the Docker service to use for dashboard
+        - traefik.http.services.api.loadbalancer.server.port=8080 # using HTTPS only tho
+    ports:
+      # HTTP
+      - target: 80
+        published: 80
+        protocol: tcp
+        mode: ingress  # switched from host mode
+      # HTTPS
+      - target: 443
+        published: 443
+        protocol: tcp
+        mode: ingress  # switched from host mode
+      # Web UI (enabled by --api.insecure=true)
+      - target: 8080
+        published: 8080
+        protocol: tcp
+        mode: ingress # non host network
+    networks:
+      - traefik-socket
+      - traefik-public
+      - backend
+    volumes:
+      # Using tcp://dockersocket:2375 via dockersocket container
+      # - /var/run/docker.sock:/var/run/docker.sock
+      - /mnt/glusterfs/traefik/logs:/logs
+      - /mnt/glusterfs/traefik/letsencrypt:/letsencrypt
+      - /mnt/glusterfs/traefik/rules:/rules # dynamic file provider dir
+    logging: *default-logging
+
+
+  cf-tunnel:
+    image: cloudflare/cloudflared
+    command: tunnel run
+    deploy:
+      mode: global
+      placement:
+        constraints:
+          - node.labels.WIRED == YES
+      update_config:
+        delay: 30s
+        order: start-first
+        monitor: 20s
+      restart_policy:
+        condition: any
+    networks:
+      - traefik-public
+    environment:
+      - TZ="America/New_York"
+      - TUNNEL_TOKEN=${CF_TUNNEL_TOKEN}
+    logging: *default-logging
+
+
+  cloudflare-companion:
+    image: ghcr.io/tiredofit/docker-traefik-cloudflare-companion:latest
+    depends_on:
+      - reverse-proxy
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    deploy:
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: any
+    environment:
+      - TZ="US/New York"
+      - LOG_TYPE=CONSOLE
+      - LOG_LEVEL=${LOG_LEVEL}
+      - TRAEFIK_VERSION=2
+      - RC_TYPE=CNAME
+      - TARGET_DOMAIN=${ROOT_DOMAIN}
+      - REFRESH_ENTRIES=TRUE
+      - DOCKER_SWARM_MODE=TRUE
+      - ENABLE_TRAEFIK_POLL=TRUE
+      - TRAEFIK_POLL_URL=https://traefik.${ROOT_DOMAIN}/api
+      - TRAEFIK_FILTER_LABEL=traefik.constraint
+      - TRAEFIK_FILTER=traefik-public #create CNAMES for services with this constrain
+      - DOMAIN1=${ROOT_DOMAIN}
+      - DOMAIN1_ZONE_ID=${ZONE_ID}
+      - DOMAIN1_PROXIED=TRUE
+    networks:
+      - backend
+    secrets:
+      - cf_token
+    logging: *default-logging
+
+
+  oauth:
+    image: ghcr.io/jordemort/traefik-forward-auth:latest #thomseddon/traefik-forward-auth
+    depends_on:
+      - cloudflare-companion
+    networks:
+      - traefik-public
+    environment:
+      - TZ="US/New York"
+      - PROVIDERS_GOOGLE_CLIENT_ID
+      - PROVIDERS_GOOGLE_CLIENT_SECRET
+      - SECRET
+      - AUTH_HOST=oauth.${ROOT_DOMAIN}
+      - URL_PATH=/_oauth
+      - LOG_LEVEL=${LOG_LEVEL} # set to trace while testing bypass rules
+      # - LOG_FORMAT=text
+      - LIFETIME=86400 # 1 day
+      - DEFAULT_ACTION=auth
+      - DEFAULT_PROVIDER=google
+      - COOKIE_DOMAIN=${ROOT_DOMAIN}
+      - INSECURE_COOKIE=false
+      - WHITELIST
+    deploy:
+      placement:
+        constraints: 
+          - node.labels.WIRED == YES
+      labels:
+        - traefik.enable=true
+        - traefik.swarm.network=traefik-public
+        - traefik.http.routers.oauth.rule=Host(`oauth.${ROOT_DOMAIN}`)
+        - traefik.http.routers.oauth.middlewares=chain-oauth@file
+        - traefik.http.routers.oauth.service=oauth-svc
+        - traefik.http.services.oauth-svc.loadbalancer.server.port=4181
+        # Only service with this constrain will get picked up by cloudflare companion
+        - traefik.constraint=traefik-public
+    logging: *default-logging
+
+
+  dockersocket:
+    image: ghcr.io/tecnativa/docker-socket-proxy:latest
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      LOG_LEVEL: ${LOG_LEVEL} # debug,info,notice,warning,err,crit,alert,emerg
+      ## Granted by Default
+      EVENTS: 1
+      PING: 1
+      VERSION: 1
+      ## Revoked by Default
+      # Security critical
+      AUTH: 0
+      SECRETS: 0
+      POST: 1
+      BUILD: 0
+      COMMIT: 0
+      CONFIGS: 0
+      DISTRIBUTION: 0
+      EXEC: 0
+      IMAGES: 1
+      INFO: 1
+      NODES: 0
+      PLUGINS: 0
+      SESSION: 0
+      SYSTEM: 0
+      VOLUMES: 1
+      CONTAINERS: 1
+      NETWORKS: 1
+      SERVICES: 1
+      SWARM: 1
+      TASKS: 1
+      TIMEOUT_CLIENT: 30s
+      TIMEOUT_CONNECT: 10s
+      TIMEOUT_SERVER: 60s
+    deploy:
+      mode: global
+      placement:
+        constraints:
+          - "node.role==manager"
+    networks:
+      - traefik-socket
+    logging: *default-logging
+
+
+  error-pages:
+    image: tarampampam/error-pages
+    environment:
+      TEMPLATE_NAME: lost-in-space #hacker-terminal #app-down
+      LOG_LEVEL: ${LOG_LEVEL}
+      LOG_FORMAT: console
+      SHOW_DETAILS: "true"
+    networks:
+      - traefik-public
+    deploy:
+      mode: replicated
+      replicas: 2
+      update_config:
+        delay: 20s
+        order: start-first
+        monitor: 10s
+      placement:
+        constraints:
+          - node.labels.WIRED == YES
+      labels:
+        - traefik.enable=true
+        - traefik.swarm.network=traefik-public
+        - traefik.http.routers.error-pages.rule=HostRegexp(`{host:.+}`) # HostRegexp(`.+`)
+        - traefik.http.routers.error-pages.priority=10
+        - traefik.http.routers.error-pages.middlewares=error-pages
+        - traefik.http.services.error-pages.loadbalancer.server.port=8080
+        - traefik.http.middlewares.error-pages.errors.status=400-599
+        - traefik.http.middlewares.error-pages.errors.service=error-pages
+        - traefik.http.middlewares.error-pages.errors.query=/{status}.html
+    logging: *default-logging
+      
+
+networks:
+  traefik-public:
+    driver: overlay
+    external: true
+  backend:
+    name: ${BACKEND_NETWORK_NAME}
+    driver: overlay
+    external: true
+  traefik-socket:
+    external: true
+    driver: overlay
+    driver_opts:
+      encrypted: 'true'
+
+secrets:
+  basic_auth_creds:
+    external: true
+  cf_token:
+    external: true
+

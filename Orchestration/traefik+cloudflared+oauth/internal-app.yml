@@ -1,0 +1,21 @@
+version: '3.9'
+
+services:
+  whoami:
+    hostname: '{{.Node.Hostname}}'
+    image: traefik/whoami
+    command:
+      - --name=internalapp
+    networks:
+      - traefik-public
+    deploy:
+      labels:
+        - traefik.enable=true
+        - traefik.swarm.network=traefik-public
+        - traefik.http.routers.internal.rule=Host(`internal.${ROOT_DOMAIN}`)
+        - traefik.http.routers.internal.middlewares=chain-no-auth@file
+        - traefik.http.routers.internal.service=internal-svc
+        - traefik.http.services.internal-svc.loadbalancer.server.port=80
+networks:
+  traefik-public:
+    external: true

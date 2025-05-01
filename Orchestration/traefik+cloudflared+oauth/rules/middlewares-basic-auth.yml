@@ -1,0 +1,9 @@
+http:
+  middlewares:
+    middlewares-basic-auth:
+      basicAuth:
+        # users:
+        # Add users here as needed OR reference the docker secret
+        #   - "user:$apsdfswWvC/6.$E3FtsfTNt5dsFpC0wVJ7IUVtX1"
+        usersFile: "/run/secrets/basic_auth_creds" 
+        realm: "Traefik 3 Basic Auth"

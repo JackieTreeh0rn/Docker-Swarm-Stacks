@@ -1,0 +1,55 @@
+version: "3.9"
+
+x-logging:
+  &default-logging
+  driver: "json-file"
+  options:
+    max-size: "1m"
+    max-file: "1"
+    tag: "{{.Name}}"
+
+services:
+  # Dozzle - Real-time Docker Log Viewer
+  dozzle:
+    image: ghcr.io/amir20/dozzle:master # jackietreehorn/${STACK_NAME}:latest 
+    networks:
+      - backend
+      - traefik-public
+    # ports:
+    #   - 8082:8080
+    environment:
+      TZ: America/New_York
+      PUID: ${PUID}
+      PGID: ${PGID}
+      DOZZLE_MODE: swarm
+      DOZZLE_LEVEL: info
+      DOZZLE_ENABLE_ACTIONS: "true"
+      # DOZZLE_NO_ANALYTICS: true
+      # DOZZLE_TAILSIZE: 300
+      # limits logs displayed to containers with this label
+      # DOZZLE_FILTER: "status=running"
+      # DOZZLE_FILTER: "label=log_me"
+      # DOCKER_HOST: tcp://socket-proxy:2375 #if using docker proxy
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    deploy:
+      mode: global
+      # placement:
+      #   constraints:
+      #     - node.role == manager
+      labels:
+        - traefik.enable=true
+        - traefik.swarm.network=traefik-public
+        - traefik.http.routers.${ROUTER_NAME}.rule=Host(`${ROUTER_NAME}.${ROOT_DOMAIN}`)
+        - traefik.http.routers.${ROUTER_NAME}.middlewares=chain-no-auth-v2@file,error-pages
+        - traefik.http.routers.${ROUTER_NAME}.service=${ROUTER_NAME}-svc
+        - traefik.http.services.${ROUTER_NAME}-svc.loadbalancer.server.port=8080
+    logging: *default-logging
+
+
+networks:
+  backend:
+    name: ${BACKEND_NETWORK_NAME}
+    external: true
+  traefik-public:
+    external: true

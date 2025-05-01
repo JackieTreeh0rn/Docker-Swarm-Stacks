@@ -1,0 +1,204 @@
+version: '3.9'
+
+x-logging:
+  &default-logging
+  driver: "json-file"
+  options:
+    max-size: "1m"
+    max-file: "1"
+    tag: "{{.Name}}"
+
+# More info https://github.com/pi-hole/docker-pi-hole/ and https://docs.pi-hole.net/
+services:
+  pihole1:
+    image: pihole/pihole:latest # pihole v6
+    hostname: "{{.Node.Hostname}}"  #container adopts hostname of the docker host
+    ports: # hostmode is ideal
+      - target: 53
+        published: 53
+        protocol: tcp
+        mode: host
+      - target: 53
+        published: 53
+        protocol: udp
+        mode: host
+      - target: 853 # DNS-over-TLS
+        published: 853
+        protocol: tcp
+        mode: host
+      # - target: 67  # DHCP only
+      #   published: 67
+      #   protocol: udp
+      #   mode: host
+      # - "67:67/udp" # Only required if using DHCP functionality
+      - "8053:80/tcp" # mgmt/UI interface - using overlay (non-host) w/keepalived VIP
+    environment:
+      TZ: "America/New_York"
+      FTLCONF_webserver_api_password: ${PIHOLE_PASSWORD}
+      PROXY_LOCATION: "{{.Node.Hostname}}" #"pi.hole" # not needed ?
+      # FTLCONF_LOCAL_IPV4: 127.0.0.1 #10.0.1.101
+      FTLCONF_BLOCK_ICLOUD_PR: "false"
+      FTLCONF_SHOW_DNSSEC: "true" 
+      FTLCONF_PIHOLE_PTR: HOSTNAME
+      FTLCONF_DEBUG_ALL: "true"
+      # PIHOLE_UID : 0
+      # DNSMASQ_USER: root
+      FTLCONF_dns_listeningMode: all
+      FTLCONF_dns_domainNeeded: "true"
+      FTLCONF_dns_bogusPriv: "false"
+      FTLCONF_dns_dnssec : "true"
+      FTLCONF_dns_upstreams : 1.1.1.1;1.0.0.1 # upstream DNS
+      FTLCONF_webserver_interface_theme: "default-darker"
+    dns:
+      # Sets your container's resolver DNS settings to localhost and one upstream server so it can resolve external DNS during startups.
+      - 127.0.0.1
+      - 1.1.1.1
+    extra_hosts: 
+      # augment container's /etc/hosts file
+      # Resolve to nothing domains (terminate connection)
+      # - 'nw2master.bioware.com nwn2.master.gamespy.com:0.0.0.0'
+      # LAN hostnames for other hosts in the network to preload as local DNS entries
+      - ${HOST_1}
+      - ${HOST_2}
+      - ${HOST_3}
+      - ${HOST_4}
+    # cap_add:
+      # - NET_ADMIN #<----Required if using Pi-hole as your DHCP server https://github.com/pi-hole/docker-pi-hole#note-on-capabilities
+      - CAP_NET_BIND_SERVICE # enabled by default
+      - CAP_SYS_TIME # enabled by default
+      # - CAP_CHOWN
+      # - CAP_SYS_NICE
+    volumes:
+      - pihole6data:/etc/pihole
+      - pihole6-dnsmasq:/etc/dnsmasq.d
+    networks:
+      - backend
+      - traefik-public
+    deploy:
+      replicas: 1
+      placement:
+        constraints: 
+          - node.labels.PIHOLE1 == YES
+      labels:
+        - traefik.enable=true
+        - traefik.swarm.network=traefik-public
+        - traefik.http.routers.${ROUTER_NAME}.rule=Host(`${ROUTER_NAME}.${ROOT_DOMAIN}`)
+        - traefik.http.routers.${ROUTER_NAME}.middlewares=chain-no-auth-v2@file,error-pages
+        - traefik.http.routers.${ROUTER_NAME}.service=${ROUTER_NAME}-svc
+        - traefik.http.services.${ROUTER_NAME}-svc.loadbalancer.server.port=80
+    logging: *default-logging
+
+
+  pihole2:
+    image: pihole/pihole:latest # pihole v6
+    hostname: "{{.Node.Hostname}}"  #container adopts hostname of the docker host
+    ports: # hostmode is ideal
+      - target: 53
+        published: 53
+        protocol: tcp
+        mode: host
+      - target: 53
+        published: 53
+        protocol: udp
+        mode: host
+      - target: 853 # DNS-over-TLS
+        published: 853
+        protocol: tcp
+        mode: host
+      # - target: 67  # DHCP only
+      #   published: 67
+      #   protocol: udp
+      #   mode: host
+      # - "67:67/udp" # Only required if using DHCP functionality
+      - "8054:80/tcp" # mgmt/UI interface - using overlay (non-host) w/keepalived VIP
+    environment:
+      TZ: "America/New_York"
+      FTLCONF_webserver_api_password: ${PIHOLE_PASSWORD}
+      PROXY_LOCATION: "{{.Node.Hostname}}" #"pi.hole" # not needed ?
+      # FTLCONF_LOCAL_IPV4: 127.0.0.1 #10.0.1.101
+      FTLCONF_BLOCK_ICLOUD_PR: "false"
+      FTLCONF_SHOW_DNSSEC: "true" 
+      FTLCONF_PIHOLE_PTR: HOSTNAME
+      FTLCONF_DEBUG_ALL: "true"
+      # PIHOLE_UID : 0
+      # DNSMASQ_USER: root
+      FTLCONF_dns_listeningMode: all
+      FTLCONF_dns_domainNeeded: "true"
+      FTLCONF_dns_bogusPriv: "false"
+      FTLCONF_dns_dnssec : "true"
+      FTLCONF_dns_upstreams : 1.1.1.1;1.0.0.1 # upstream DNS
+      FTLCONF_webserver_interface_theme: "default-darker"
+    dns:
+      # Sets your container's resolver DNS settings to localhost and one upstream server so it can resolve external DNS during startups.
+      - 127.0.0.1
+      - 1.1.1.1
+    extra_hosts: 
+      # augment container's /etc/hosts file
+      # Resolve to nothing domains (terminate connection)
+      # - 'nw2master.bioware.com nwn2.master.gamespy.com:0.0.0.0'
+      # LAN hostnames for other hosts in the network to preload as local DNS entries
+      - ${HOST_1}
+      - ${HOST_2}
+      - ${HOST_3}
+      - ${HOST_4}
+    cap_add:
+      # - NET_ADMIN #<----Required if using Pi-hole as your DHCP server https://github.com/pi-hole/docker-pi-hole#note-on-capabilities
+      - CAP_NET_BIND_SERVICE # enabled by default
+      - CAP_SYS_TIME # enabled by default
+      # - CAP_CHOWN
+      # - CAP_SYS_NICE
+    volumes:
+      - pihole6data:/etc/pihole
+      - pihole6-dnsmasq:/etc/dnsmasq.d
+    networks:
+      - backend
+    deploy:
+      replicas: 1
+      placement:
+        constraints: 
+          - node.labels.PIHOLE2 == YES
+    logging: *default-logging
+
+  nebula-sync:
+    image: ghcr.io/lovelaze/nebula-sync:latest
+    environment:
+      TZ: "America/New_York"
+      PRIMARY: ${PRIMARY_HOST}|${PIHOLE_PASSWORD}
+      REPLICAS: ${SECONDARY_HOST}|${PIHOLE_PASSWORD} #,http://ph3.example.com|password
+      FULL_SYNC: "true"
+      RUN_GRAVITY: "true"
+      CLIENT_SKIP_TLS_VERIFICATION: "true"
+      CRON: 0 * * * *
+    networks:
+      - backend   
+    depends_on:
+      - pihole1
+      - pihole2
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.labels.WIRED == YES # use your own constrains
+      restart_policy:
+        condition: on-failure
+      update_config:
+        parallelism: 1
+        delay: 1m
+        monitor: 10s
+    logging: *default-logging
+
+
+volumes:
+  # use 'external' for db volumes so they're not recreated during redeployments
+  pihole6data:
+    external: true
+  pihole6-dnsmasq:
+    external: true
+
+networks:
+  backend:
+    name: ${BACKEND_NETWORK_NAME}
+    external: true
+  traefik-public:
+    external: true

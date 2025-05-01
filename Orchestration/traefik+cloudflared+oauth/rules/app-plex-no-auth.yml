@@ -1,0 +1,16 @@
+http:
+  routers:
+    plex:
+      rule: Host(`plex.{{env "ROOT_DOMAIN"}}`)
+      # entryPoints:
+      #   - websecure
+      middlewares:
+        - chain-no-auth-v2
+      service: plex-svc
+      # tls:
+      #   certResolver: letsencrypt
+  services:
+    plex-svc:
+      loadBalancer:
+        servers:
+          - url: "http://plex.your-domain.lan:32400"

@@ -1,0 +1,80 @@
+version: '3.9'
+
+x-logging:
+  &default-logging
+  driver: "json-file"
+  options:
+    max-size: "1m"
+    max-file: "1"
+    tag: "{{.Name}}"
+
+services:
+  registry:
+    image: registry:2
+    # ports:
+      # - 5000:5000
+    volumes:
+      - /mnt/glusterfs/registry/data:/var/lib/registry
+      - /mnt/glusterfs/registry/config.yml:/etc/docker/registry/config.yml #registry config
+    environment:
+      - REGISTRY_HTTP_HOST=https://registry.yourdomain.co
+      - REGISTRY_HTTP_SECRET=${REGISTRY_HTTP_SECRET}
+      - REGISTRY_AUTH_HTPASSWD_PATH=/run/secrets/registry_auth_creds
+      - REGISTRY_AUTH_HTPASSWD_REALM="registry"
+      - REGISTRY_STORAGE_CACHE_BLOBDESCRIPTOR=redis
+      - REGISTRY_REDIS_ADDR=redis:6379
+      - REGISTRY_STORAGE_DELETE_ENABLED=true
+      - REGISTRY_HTTP_RELATIVEURLS=true
+    secrets:
+      - registry_auth_creds
+    networks:
+      - backend
+      - traefik-public
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints: 
+          - node.labels.GLUSTER == YES
+          - node.labels.WIRED == YES
+      labels:
+        - traefik.enable=true
+        - traefik.swarm.network=traefik-public
+        - traefik.http.routers.${ROUTER_NAME}.rule=Host(`${ROUTER_NAME}.${ROOT_DOMAIN}`)
+        - traefik.http.routers.${ROUTER_NAME}.middlewares=chain-no-auth@file #,error-pages
+        - traefik.http.routers.${ROUTER_NAME}.service=${ROUTER_NAME}-svc
+        - traefik.http.services.${ROUTER_NAME}-svc.loadbalancer.server.port=5000
+    depends_on:
+      - redis
+    logging: *default-logging
+
+  redis:
+    image: redis:6
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+            - node.labels.GLUSTER == YES
+            - node.labels.WIRED == YES
+      resources:
+        limits:
+          cpus: "2"
+          memory: 2024M
+    volumes:
+      - /mnt/glusterfs/registry/redis:/var/lib/keydb/data
+    networks:
+      - backend
+    logging: *default-logging
+
+    
+networks:
+  backend:
+    name: ${BACKEND_NETWORK_NAME}
+    external: true
+  traefik-public:
+    external: true
+
+secrets:
+  registry_auth_creds:
+    external: true
