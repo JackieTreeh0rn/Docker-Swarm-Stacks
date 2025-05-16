@@ -30,7 +30,7 @@ http:
         referrerPolicy: "strict-origin-when-cross-origin"
         permissionsPolicy: "camera=(), microphone=(), geolocation=(), payment=(), usb=(), vr=()"
         customResponseHeaders:
-          X-Robots-Tag: "none,noarchive,nosnippet,notranslate,noimageindex,"
+          X-Robots-Tag: "none,noarchive,nosnippet,notranslate,noimageindex"
           server: "" # Hide server information
           # www-authenticate: "" # Preserve the WWW-Authenticate header (required by some services)
         customRequestHeaders:
