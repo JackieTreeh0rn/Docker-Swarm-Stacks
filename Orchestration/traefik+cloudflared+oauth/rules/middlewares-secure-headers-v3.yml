@@ -3,8 +3,6 @@ http:
     middlewares-secure-headers-v3:
       headers:
         # CORS (Cross-Origin Resource Sharing)
-        # accessControlAllowOriginListRegex:
-        #   - "^https://([a-z0-9-]+\\.)*bitwisesolutions\\.co$" # with wildcard subdomain support and credentials
         accessControlAllowOriginList:
           - "*"
         accessControlAllowMethods:
