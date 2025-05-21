@@ -40,7 +40,7 @@ services:
 
         # Router config
         - traefik.http.routers.${ROUTER_NAME}.rule=Host(`${ROUTER_NAME}.${ROOT_DOMAIN}`)
-        - traefik.http.routers.${ROUTER_NAME}.middlewares=chain-oauth-v2@file,error-pages
+        - traefik.http.routers.${ROUTER_NAME}.middlewares=chain-oauth@file,error-pages
         - traefik.http.routers.${ROUTER_NAME}.service=${ROUTER_NAME}-svc
         - traefik.http.routers.${ROUTER_NAME}.priority=90
 

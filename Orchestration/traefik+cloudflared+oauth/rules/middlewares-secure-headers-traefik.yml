@@ -2,23 +2,86 @@ http:
   middlewares:
     middlewares-secure-headers-traefik:
       headers:
+        # ===========================
+        # CORS (Cross-Origin Support)
+        # ===========================
+        accessControlAllowOriginListRegex:
+          - "^https://([a-z0-9-]+\\.)*yourdomain\\.co$"
+          - "^https://yourdomain\\.co$"
+        # with wildcard subdomain support and credentials
+        # accessControlAllowOriginList: ["*"]
         accessControlAllowMethods:
           - GET
-          - OPTIONS
+          - POST
           - PUT
-        accessControlMaxAge: 100
-        hostsProxyHeaders:
-          - "X-Forwarded-Host"
-        stsSeconds: 63072000
+          - DELETE
+          - OPTIONS
+          - PATCH
+        accessControlAllowHeaders:
+          - Authorization
+          - Content-Type
+          - Accept
+          # Client-sent headers only
+          - X-Requested-With
+          # Traefik already takes care of this
+          # - X-Forwarded-For
+          # - X-Forwarded-Proto
+          # - X-Forwarded-Host
+          # - X-Forwarded-Port
+        accessControlAllowCredentials: true
+        accessControlMaxAge: 3600
+
+        # =================================
+        # WebSocket Handling (Traefik-Specific)
+        # =================================
+        # Traefik v3 automatically handles WebSocket upgrades when detected
+        # These headers are ONLY added during actual WebSocket upgrades, but left Upgrade and Connection in anyway
+        customRequestHeaders:
+          X-Forwarded-Proto: "https"
+          # Upgrade: "websocket" # traefik takes care
+          # Connection: "upgrade" # traefik takes care
+
+        # ====================
+        # Security Headers
+        # ====================
+        stsSeconds: 63072000  # 2 years for preload compliance
         stsIncludeSubdomains: true
         stsPreload: true
-        # forceSTSHeader: true # This is a good thing but it can be tricky. Enable after everything works.
-        customFrameOptionsValue: SAMEORIGIN # https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-Frame-Options
-        contentTypeNosniff: false #true <--caused issue with traefik dashboard not showing
+        forceSTSHeader: true    # Critical for HSTS enforcement
+        frameDeny: true
+        contentTypeNosniff: false # <- might cause issue when used on traefik's API dashboard - disable it
         browserXssFilter: true
-        referrerPolicy: "same-origin"
-        permissionsPolicy: "camera=(), microphone=(), geolocation=(), payment=(), usb=(), vr=()"
+
+        # =================================
+        # Privacy Headers
+        # =================================
+        referrerPolicy: "strict-origin-when-cross-origin"
+        permissionsPolicy: "camera=(), microphone=(), geolocation=(), payment=()"
+
+        # ====================
+        # CSP
+        # ====================
+        contentSecurityPolicy: >
+          default-src 'self';
+          script-src 'self' 'unsafe-inline' 'unsafe-eval' https: data:;
+          style-src 'self' 'unsafe-inline' https:;
+          font-src 'self' https: data:;
+          img-src 'self' https: data:;
+          connect-src 'self' https:;
+          frame-ancestors 'none';
+          object-src 'none';
+
+        # =================================
+        # Response Headers
+        # =================================
         customResponseHeaders:
-          X-Robots-Tag: "none,noarchive,nosnippet,notranslate,noimageindex," # disable search engines from indexing home server
-          server: "" # hide server info from visitors
-          # www-authenticate: "" # Preserve the WWW-Authenticate header (required by some services)
+          X-Robots-Tag: "none,noarchive,nosnippet,notranslate,noimageindex"
+          Server: ""
+          X-Content-Type-Options: "nosniff"
+          X-XSS-Protection: "1; mode=block"
+
+        # ====================
+        # Proxy Headers
+        # ====================
+        hostsProxyHeaders:
+          - X-Forwarded-Host

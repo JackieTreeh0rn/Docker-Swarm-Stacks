@@ -6,3 +6,6 @@ http:
         trustForwardHeader: true
         authResponseHeaders:
           - "X-Forwarded-User"
+          - "X-Forwarded-Email"
+          - "X-Auth-Request-User"
+          - "X-Auth-Request-Email"

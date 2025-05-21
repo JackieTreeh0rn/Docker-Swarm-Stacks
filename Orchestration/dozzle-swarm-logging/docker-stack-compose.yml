@@ -41,7 +41,7 @@ services:
         - traefik.enable=true
         - traefik.swarm.network=traefik-public
         - traefik.http.routers.${ROUTER_NAME}.rule=Host(`${ROUTER_NAME}.${ROOT_DOMAIN}`)
-        - traefik.http.routers.${ROUTER_NAME}.middlewares=chain-no-auth-v2@file,error-pages
+        - traefik.http.routers.${ROUTER_NAME}.middlewares=chain-no-auth@file,error-pages
         - traefik.http.routers.${ROUTER_NAME}.service=${ROUTER_NAME}-svc
         - traefik.http.services.${ROUTER_NAME}-svc.loadbalancer.server.port=8080
     logging: *default-logging
