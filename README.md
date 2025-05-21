@@ -25,7 +25,7 @@ The repository is organized into subdirectories, each representing a service. Ea
 | **Media**                | Jellyfin                          | Media server for movies, TV, and more                                                                 |
 | **Home Automation**      | Homebridge HomeKit                | HomeKit bridge for smart home devices without native apple HomeKit support                            |
 | **AI Tools**             | Big-AGI                           | LLM front-end with Puppeteer/browserless integration and multi-model local and SaaS LLM support       |
-|                          | Comfy-UI + Comfy-CLI              | User interface and command-line tools for AI integrations                                             |
+|                          | Open-WebUI                        | LLM front-end with integration and multi-model local and SaaS LLM support, stack contains redis for websocket support and database storage                                        |
 | **Orchestration**        | Docker Garbage Collect            | Automated cleanup of Docker resources, containers, and garbage                                        |
 |                          | Docker Swarm Dashboard            | Comprehensive visual dashboard for monitoring Swarm clusters                                          |
 |                          | Docker Swarm Keepalive            | Ensures high availability of Swarm manager nodes with floating vIPs                                   |
