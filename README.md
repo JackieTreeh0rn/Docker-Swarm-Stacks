@@ -1,4 +1,4 @@
-# 🐳 Self-Hosted Docker Swarm Stacks
+# 🐳 Self-Hosted - Docker Swarm Orchestration Stacks
 
 This repository contains a collection of self-hosted custom **Docker Swarm stacks** used in my environment, for deploying and managing various services in a scalable, high-availability fashion across a number of nodes. Each stack includes:
 
@@ -67,4 +67,4 @@ cd Docker-Swarm-Stacks
 
 
 ## 📄 License
-This project is licensed under the MIT License. See the LICENSE file for details.
+This project is licensed under the MIT License. See the LICENSE for details.
