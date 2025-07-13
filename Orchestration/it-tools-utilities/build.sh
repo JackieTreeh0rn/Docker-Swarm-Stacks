@@ -5,7 +5,7 @@ set -o allexport
 
 
 # CLONE Repo
-git clone --depth 1 --single-branch https://github.com/JackieTreeh0rn/it-tools build
+git clone --depth 1 --single-branch https://github.com/CorentinTh/it-tools build
 
 # BUILD - DOCKER HUB
 docker login
