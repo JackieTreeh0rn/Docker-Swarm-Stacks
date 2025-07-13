@@ -6,7 +6,7 @@ This repository contains a collection of self-hosted custom **Docker Swarm stack
 ## 📋 Repository Structure
 
 The repository is organized into subdirectories, each representing a service. Each service directory contains:
-- A Docker Compose file (Swarm-compatible) `docker-stack-compose.yml` file or equivalent.
+- Docker Compose file (Swarm-compatible) `docker-stack-compose.yml` file or equivalent.
 - Environment variable files (`.env`).
 - Bash scripts for building, deploying, and removing the service.
 - Additional configuration files as needed (e.g., `config.yml`, `Dockerfile`, etc.).
@@ -43,8 +43,8 @@ The repository is organized into subdirectories, each representing a service. Ea
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/JackieTreeh0rn/Docker-Swarm-Stacks.git
-cd Docker-Swarm-Stacks
+git clone https://github.com/JackieTreeh0rn/Orchestration-Stacks.git
+cd Orchestration-Stacks
 ```
 
 
@@ -67,4 +67,4 @@ cd Docker-Swarm-Stacks
 
 
 ## 📄 License
-This project is licensed under the MIT License. See the LICENSE for details.
+This project is licensed under the MIT License.
